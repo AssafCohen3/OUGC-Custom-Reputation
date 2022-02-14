@@ -34,13 +34,14 @@ defined('IN_MYBB') or die('This file cannot be accessed directly.');
 if(defined('IN_ADMINCP'))
 {
 	// Add menu to ACP
-	$plugins->add_hook('admin_config_menu', create_function('&$args', 'global $lang, $customrep;	if($customrep->active) {$customrep->lang_load();	$args[] = array(\'id\' => \'ougc_customrep\', \'title\' => $lang->ougc_customrep, \'link\' => \'index.php?module=config-ougc_customrep\');}'));
+	$plugins->add_hook('admin_config_menu', 'ougc_customrep_admin_config');
 
 	// Add our action handler to config module
-	$plugins->add_hook('admin_config_action_handler', create_function('&$args', '$args[\'ougc_customrep\'] = array(\'active\' => \'ougc_customrep\', \'file\' => \'ougc_customrep.php\');'));
+	$plugins->add_hook('admin_config_action_handler', 'ougc_customrep_admin_config_action_handler');
+
 
 	// Insert our plugin into the admin permissions page
-	$plugins->add_hook('admin_config_permissions', create_function('&$args', 'global $lang, $customrep;	$customrep->lang_load();	$args[\'ougc_customrep\'] = $lang->ougc_customrep_perm;'));
+	$plugins->add_hook('admin_config_permissions', 'ougc_customrep_admin_config_permission');
 
 	// Users merge
 	$plugins->add_hook('admin_user_users_merge_commit', 'ougc_customrep_users_merge');
@@ -50,17 +51,8 @@ if(defined('IN_ADMINCP'))
 	$plugins->add_hook('admin_config_settings_change', 'ougc_customrep_admin_config_settings_change');
 
 	// Cache manager
-	$funct = create_function('', '
-			control_object($GLOBALS[\'cache\'], \'
-			function update_ougc_customrep()
-			{
-				$GLOBALS[\\\'customrep\\\']->update_cache();
-			}
-		\');
-	');
-	$plugins->add_hook('admin_tools_cache_start', $funct);
-	$plugins->add_hook('admin_tools_cache_rebuild', $funct);
-	unset($funct);
+	$plugins->add_hook('admin_tools_cache_start', 'ougc_customrep_admin_cache');
+	$plugins->add_hook('admin_tools_cache_rebuild', 'ougc_customrep_admin_cache');
 }
 else
 {
@@ -117,6 +109,42 @@ $plugins->add_hook('datahandler_user_delete_content', 'ougc_customrep_user_delet
 
 // PLUGINLIBRARY
 defined('PLUGINLIBRARY') or define('PLUGINLIBRARY', MYBB_ROOT.'inc/plugins/pluginlibrary.php');
+
+
+function ougc_customrep_admin_config(&$args){
+	global $lang, $customrep;
+	if($customrep->active){
+		$customrep->lang_load();
+		$args[] = array(
+			'id' => 'ougc_customrep', 
+			'title' => $lang->ougc_customrep, 
+			'link' => 'index.php?module=config-ougc_customrep'
+		);
+	}
+}
+
+function ougc_customrep_admin_config_permission(&$args){
+	global $lang, $customrep;	
+	$customrep->lang_load();
+	$args['ougc_customrep'] = $lang->ougc_customrep_perm;
+}
+
+function ougc_customrep_admin_config_action_handler(&$args){
+	$args['ougc_customrep'] = array(
+		'active' => 'ougc_customrep',
+		'file' => 'ougc_customrep.php'
+	);
+}
+
+function ougc_customrep_admin_cache(){
+	control_object($GLOBALS['cache'], '
+		function update_ougc_customrep()
+		{
+			$GLOBALS[\\\'customrep\\\']->update_cache();
+		}
+	');
+}
+
 
 // Plugin API
 function ougc_customrep_info()
@@ -2582,14 +2610,14 @@ class OUGC_CustomRep
 
 		$this->validate_errors = array();
 		$name = trim($this->rep_data['name']);
-		if(!$name || $name > 100)
+		if(!$name || my_strlen($name) > 100)
 		{
 			$this->validate_errors[] = $lang->ougc_customrep_error_invalidname;
 			$valid = false;
 		}
 
 		$name = trim($this->rep_data['image']);
-		if($name && $name > 255)
+		if($name && my_strlen($name) > 255)
 		{
 			$this->validate_errors[] = $lang->ougc_customrep_error_invalidimage;
 			$valid = false;
@@ -2601,7 +2629,7 @@ class OUGC_CustomRep
 			$valid = false;
 		}
 
-		if($this->rep_data['reptype'] !== '' && !is_numeric($this->rep_data['reptype']) || $this->rep_data['reptype']{3})
+		if($this->rep_data['reptype'] !== '' && !is_numeric($this->rep_data['reptype']) || $this->rep_data['reptype'][3])
 		{
 			$this->validate_errors[] = $lang->ougc_customrep_error_invalidreptype;
 			$valid = false;
